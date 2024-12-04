@@ -1,0 +1,96 @@
+#!/bin/bash
+# vim: set tabstop=2:softtabstop=2:shiftwidth=2:noexpandtab 
+
+_mcnp_completion() {
+
+  # parse the COMP_WORDS and COMP_CWORDS to $cur $prev $word and $cword
+  local cur prev words cword
+  _init_completion -n = || return
+
+  # ignore a space between keyword and equal sign
+  # first alternative: "keyw =" or "keyw =val" : $prev = "keyw" and $cur = "=val" 
+  if [[ $cur = "="* ]] ; then
+    cur="$prev$cur"
+  fi
+
+  # second alternative: "keyw = " or "keyw = val" : $prev = "=" and $cur = "val" and word before is "keyw"
+  if [[ $prev = "=" ]] ; then
+    prev="${words[$cword-2]}="
+  fi
+
+  # first check, for some special cases
+  # check, that $cur is "keyw=val" without any spaces
+  if [[ $cur = [a-zA-Z]*=* ]] ; then
+    # Split to keyword and value part
+    keyword=${cur%%=*}
+    value=${cur#*=}
+    # check if keyword start with some string
+    if [[ "inp" = $keyword* ]] ; then
+      pattern='!*.@(i|inp)' 
+    elif [[ "runtpe" = $keyword* ]] ; then 
+      pattern='!@(*.r|runtp[e-z])?(.h5)'
+    elif [[ "mctal" = $keyword* ]] ; then 
+      pattern='!@(*.m|mcta[l-z])'
+    elif [[ "xsdir" = $keyword* ]] ; then 
+      pattern='!xsdir*'
+    elif [[ "name" = $keyword* ]] ; then 
+      inpbase=$( echo $COMP_LINE | sed -En -e 's/\s*=\s*/=/g ; /\bin?p?=/{ s/^.*\bin?p?=(.*)(\s+.*)?$/\1/ ; s/(.*)\.[^.]*/\1/ ; p }' )
+      if [[ ! -z $inpbase ]] ; then
+        COMPREPLY=($inpbase.) 
+	return 0
+      fi
+      pattern='!*'
+    else
+      pattern='!*'
+    fi
+    compopt -o filenames
+    COMPREPLY=($(compgen -f -X $pattern -o plusdirs  -- $value))
+    return 0
+  fi
+
+
+  # Next check, if $prev is a keyword without a filename part
+  # in this case, $cur is the corresponding filename (maybe empty), that needs to be expanded
+  # in this case, use ANY filename, even for inp=
+  # That way, it is possibly to expand any file
+  if [[ $prev = [a-zA-Z]*= ]] ; then
+    compopt -o filenames
+    COMPREPLY=($(compgen -f -o plusdirs -o filenames -- $cur))
+    return 0
+  fi
+
+  # guess the cpus available
+  local cpu
+  if [[ ! -z $MCNP_TASKS ]] ; then
+    cpu=$MCNP_TASKS
+  elif command -v nproc 2>&1 > /dev/null ; then
+    cpu=$(nproc)
+  else
+    cpu=1
+  fi
+
+
+  # Finally expand any of the known keywords
+  local -a words
+
+  # all keywords that expect a file / direcory
+  words="inp=;outp=;runtpe=;xsdir=;wwinp=;wwout=;wwone=;partinp=;linkin=;linkout=;ksental=;histp=;dumn1=;dumn2=;com=;comout=;plotm=;mctal=;meshtal=;mdata=;ptrac=;name=;srctp=;wssa=;rssa="
+   
+  
+  # All other_options (upper case for MCNP 4?)
+  words="${words};BALANCE ;C ;CN ;DEBUG ;DEV_TEST ;EOL;FATAL ;NOTEK ;PRINT ;TASKS $cpu ;"
+
+  # don't insert space after word. Thus for files, the curser is positioned directly after the = sign
+  # for the other_options, a space is inserted in the above string and that is seperated by a semicolon
+  # set IFS accordingly
+  compopt -o nospace
+  local IFS=$';\n'
+
+  # compgen filters all words that match $cur 
+  COMPREPLY=( $(compgen -W "$words" -- $cur ) )
+  return 0
+}
+
+
+complete -F _mcnp_completion mcnp
+complete -F _mcnp_completion mcnp6
