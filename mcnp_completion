@@ -22,6 +22,7 @@ _mcnp_completion() {
   # check, that $cur is "keyw=val" without any spaces
   if [[ $cur = [a-zA-Z]*=* ]] ; then
     # Split to keyword and value part
+    local keyword value pattern
     keyword=${cur%%=*}
     value=${cur#*=}
     # check if keyword start with some string
@@ -34,9 +35,10 @@ _mcnp_completion() {
     elif [[ "xsdir" = $keyword* ]] ; then 
       pattern='!xsdir*'
     elif [[ "name" = $keyword* ]] ; then 
-      inpbase=$( echo $COMP_LINE | sed -En -e 's/\s*=\s*/=/g ; /\bin?p?=/{ s/^.*\bin?p?=(.*)(\s+.*)?$/\1/ ; s/(.*)\.[^.]*/\1/ ; p }' )
-      if [[ ! -z $inpbase ]] ; then
-        COMPREPLY=($inpbase.) 
+      local inpbase=$( echo $COMP_LINE | sed -En -e 's/\s*=\s*/=/g ; /\bin?p?=/{ s/^.*\bin?p?=(.*)(\s+.*)?$/\1/ ; s/(.*)\.[^.]*/\1/ ; p }' )
+      local completion=${MCNP_PRERUN}${inpbase}.
+      if [[ ( ! -z $inpbase ) && ( $completion = ${value}* ) ]] ; then
+	COMPREPLY=($completion)
 	return 0
       fi
       pattern='!*'
